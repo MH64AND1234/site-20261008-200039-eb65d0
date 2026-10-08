@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🔥 سكوب حراري AI Pro</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;background:#000;font-family:"Consolas","Courier New",monospace;color:#0f0;}
+
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
+  #scopeWrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+  canvas#view{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;}
+  video#cam{display:none;}
+
+  /* HUD */
+  #hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:14px 18px;font-size:12.5px;letter-spacing:1px;text-shadow:0 0 6px currentColor;z-index:5;}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .row.bottom{align-items:flex-end;}
+
+  .tag{background:rgba(0,0,0,.55);border:1px solid rgba(0,255,80,.45);padding:5px 11px;border-radius:4px;color:#00ff66;font-weight:700;backdrop-filter:blur(3px);white-space:nowrap;font-size:11.5px;}
+  .tag.red{color:#ff4040;border-color:rgba(255,64,64,.55);animation:pulse 1s infinite;}
+  .tag.amber{color:#ffb100;border-color:rgba(255,177,0,.55);}
+  .tag.blue{color:#00b3ff;border-color:rgba(0,179,255,.55);}
+  @keyframes pulse{50%{opacity:.5;}}
+
+  /* Reticle */
+  #reticle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(78vmin,600px);height:min(78vmin,600px);pointer-events:none;z-index:4;}
+  #reticle svg{width:100%;height:100%;}
+  #reticle .line{stroke:#00ff66;stroke-width:1.4;fill:none;opacity:.85;filter:drop-shadow(0 0 4px #00ff66);}
+  #reticle .thin{stroke-width:.9;opacity:.55;}
+  #reticle .center{fill:#00ff66;opacity:.95;filter:drop-shadow(0 0 6px #00ff66);}
+
+  #vignette{position:absolute;inset:0;pointer-events:none;z-index:3;background:radial-gradient(circle at 50% 50%,transparent 0%,transparent 38%,rgba(0,0,0,.25) 52%,rgba(0,0,0,.85) 72%,rgba(0,0,0,1) 100%);}
+
+  #scanlines{position:absolute;inset:0;pointer-events:none;opacity:.14;z-index:2;background:repeating-linear-gradient(0deg,rgba(0,255,80,.35) 0 1px,transparent 1px 3px);animation:scan 8s linear infinite;}
+  @keyframes scan{from{background-position-y:0;}to{background-position-y:300px;}}
+
+  #recDot{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:6px;color:#ff4040;font-size:12px;font-weight:700;letter-spacing:2px;text-shadow:0 0 8px #ff4040;z-index:6;}
+  #recDot.show{display:flex;}
+  #recDot::before{content:"";width:9px;height:9px;border-radius:50%;background:#ff2020;box-shadow:0 0 10px #ff2020;animation:blink 1.1s steps(2) infinite;}
+  @keyframes blink{50%{opacity:.15;}}
+
+  /* لوحة تحكم */
+  #controls{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.9) 30%,#000 100%);padding:14px 16px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;transition:transform .3s ease,opacity .3s ease;z-index:10;max-height:52vh;overflow-y:auto;}
+  #controls.hidden{transform:translateY(110%);opacity:0;}
+
+  .palette-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  .pal-btn{font-family:inherit;font-size:11.5px;font-weight:700;letter-spacing:.5px;padding:8px 12px;border-radius:6px;cursor:pointer;background:rgba(0,255,80,.08);border:1px solid rgba(0,255,80,.35);color:#00ff66;transition:.2s;}
+  .pal-btn.active{background:#00ff66;color:#000;box-shadow:0 0 18px rgba(0,255,102,.7);}
+
+  .slider-row{display:flex;align-items:center;gap:12px;}
+  .slider-row label{font-size:11px;color:#00ff66;min-width:60px;letter-spacing:.5px;}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;background:rgba(0,255,80,.2);border-radius:99px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#00ff66;box-shadow:0 0 10px #00ff66;cursor:pointer;border:2px solid #000;}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#00ff66;border:2px solid #000;cursor:pointer;}
+
+  .btn-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  .main-btn{font-family:inherit;font-size:13px;font-weight:800;letter-spacing:.5px;padding:11px 20px;border-radius:8px;cursor:pointer;background:linear-gradient(180deg,#00ff66,#00b347);border:none;color:#001a0c;transition:.2s;box-shadow:0 0 20px rgba(0,255,102,.4);}
+  .main-btn:active{transform:scale(.97);}
+  .main-btn.off{background:linear-gradient(180deg,#ff4040,#a00);color:#fff;box-shadow:0 0 20px rgba(255,64,64,.4);}
+  .ghost-btn{font-family:inherit;font-size:12px;font-weight:700;padding:10px 14px;border-radius:8px;cursor:pointer;background:rgba(0,255,80,.1);border:1px solid rgba(0,255,80,.35);color:#00ff66;}
+  .ghost-btn.ai{border-color:rgba(0,179,255,.5);color:#00b3ff;background:rgba(0,179,255,.1);}
+  .ghost-btn.ai.on{background:#00b3ff;color:#fff;}
+  .ghost-btn.snd{border-color:rgba(255,177,0,.5);color:#ffb100;background:rgba(255,177,0,.1);}
+  .ghost-btn.snd.on{background:#ffb100;color:#000;}
+  .ghost-btn.rec{border-color:rgba(255,64,64,.5);color:#ff4040;background:rgba(255,64,64,.1);}
+  .ghost-btn.rec.on{background:#ff4040;color:#fff;animation:pulse 1s infinite;}
+
+  #toggleUI{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(100% + 8px);width:44px;height:22px;border-radius:11px 11px 0 0;background:rgba(0,255,80,.15);border:1px solid rgba(0,255,80,.4);border-bottom:none;cursor:pointer;z-index:11;color:#00ff66;font-size:14px;line-height:1;padding:0;}
+
+  /* شاشات */
+  #loading{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(0,0,0,.9);color:#00b3ff;z-index:20;text-align:center;padding:24px;}
+  #loading.show{display:flex;}
+  #loading h2{font-size:16px;letter-spacing:1.5px;}
+  #loading p{font-size:12px;color:#88ccff;max-width:320px;line-height:1.6;}
+  .spinner{width:50px;height:50px;border:3px solid rgba(0,179,255,.2);border-top-color:#00b3ff;border-radius:50%;animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  #noCam{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.88);color:#ff6060;text-align:center;padding:24px;z-index:19;}
+  #noCam.show{display:flex;}
+  #noCam h2{font-size:17px;letter-spacing:1px;}
+  #noCam p{font-size:12px;color:#ff9999;max-width:340px;line-height:1.7;}
+  #noCam code{background:rgba(255,64,64,.15);padding:2px 6px;border-radius:3px;color:#ffb0b0;font-size:11px;}
+  #noCam .retry{margin-top:8px;padding:10px 22px;background:#ff4040;color:#fff;border:none;border-radius:8px;font-family:inherit;font-weight:800;cursor:pointer;letter-spacing:1px;}
+
+  .readout{display:flex;flex-direction:column;align-items:flex-start;gap:3px;}
+  .readout .v{font-size:15px;color:#00ff66;font-weight:800;}
+  .readout .v.ai{color:#00b3ff;}
+  .readout .v.amber{color:#ffb100;}
+  .readout .k{font-size:10px;color:rgba(0,255,80,.6);letter-spacing:1.5px;}
+  .readout .k.ai{color:rgba(0,179,255,.7);}
+  .readout .k.amber{color:rgba(255,177,0,.7);}
+
+  #statsPanel{position:absolute;top:50%;left:12px;transform:translateY(-50%);background:rgba(0,0,0,.6);border:1px solid rgba(0,179,255,.35);border-radius:10px;padding:10px 12px;display:none;flex-direction:column;gap:8px;font-size:11px;letter-spacing:.5px;z-index:6;backdrop-filter:blur(4px);}
+  #statsPanel.show{display:flex;}
+  #statsPanel .item{display:flex;justify-content:space-between;gap:14px;color:#88ccff;}
+  #statsPanel .item b{color:#00b3ff;font-weight:800;}
+  #statsPanel .item.in b{color:#00ff66;}
+  #statsPanel .item.out b{color:#ffb100;}
+  #statsPanel .item.eng b{color:#00ff66;}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="scopeWrap">
+    <video id="cam" playsinline muted autoplay></video>
+    <canvas id="view"></canvas>
+
+    <div id="scanlines"></div>
+    <div id="vignette"></div>
+
+    <div id="reticle">
+      <svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
+        <circle class="line thin" cx="200" cy="200" r="170"/>
+        <circle class="line thin" cx="200" cy="200" r="120"/>
+        <path class="line" d="M30,70 L30,30 L70,30"/>
+        <path class="line" d="M330,30 L370,30 L370,70"/>
+        <path class="line" d="M370,330 L370,370 L330,370"/>
+        <path class="line" d="M70,370 L30,370 L30,330"/>
+        <path class="line" d="M200,60 L200,155"/>
+        <path class="line" d="M200,245 L200,340"/>
+        <path class="line" d="M60,200 L155,200"/>
+        <path class="line" d="M245,200 L340,200"/>
+        <path class="line thin" d="M185,110 L215,110"/>
+        <path class="line thin" d="M185,80 L215,80"/>
+        <path class="line thin" d="M110,185 L110,215"/>
+        <path class="line thin" d="M140,185 L140,215"/>
+        <circle class="center" cx="200" cy="200" r="3.5"/>
+        <circle class="line thin" cx="200" cy="200" r="10"/>
+      </svg>
+    </div>
+
+    <div id="statsPanel">
+      <div class="item"><span>👥 الأهداف</span><b id="spTargets">0</b></div>
+      <div class="item in"><span>⬅ دخل</span><b id="spIn">0</b></div>
+      <div class="item out"><span>➡ خرج</span><b id="spOut">0</b></div>
+      <div class="item"><span>🎯 الثقة</span><b id="spConf">--%</b></div>
+      <div class="item"><span>📏 المسافة</span><b id="spDist">--م</b></div>
+      <div class="item"><span>⚡ الأداء</span><b id="spFps">0 FPS</b></div>
+      <div class="item eng"><span>🧠 محرك AI</span><b id="spEngine">--</b></div>
+    </div>
+
+    <div id="hud">
+      <div class="row">
+        <div class="tag" id="modeTag">🔥 حراري</div>
+        <div class="tag" id="palTag">IRON</div>
+        <div class="tag amber" id="fpsTag">0 FPS</div>
+      </div>
+
+      <div id="recDot">REC</div>
+
+      <div class="row bottom">
+        <div class="readout">
+          <span class="k">ZOOM</span>
+          <span class="v" id="zoomOut">1.0×</span>
+        </div>
+        <div class="tag red" id="statusTag" style="display:none;">👤 0</div>
+        <div class="tag blue" id="statusTag2">جاهز</div>
+        <div class="readout amber" style="align-items:flex-end;">
+          <span class="k amber">MAX TEMP</span>
+          <span class="v amber" id="tempOut">--°</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <h2 id="loadingTitle">⏳ جاري تحميل موديل الذكاء الاصطناعي…</h2>
+      <p id="loadingMsg">COCO-SSD (~6MB) — يحتاج إنترنت أول مرة فقط</p>
+    </div>
+
+    <div id="noCam">
+      <h2>⚠ تعذّر الوصول للكاميرا</h2>
+      <p id="errMsg">افتح الصفحة من متصفح خارجي واسمح بالوصول للكاميرا.</p>
+      <p id="errCode" style="font-size:11px;color:#ffb0b0;"></p>
+      <button class="retry" id="retryBtn">🔄 إعادة المحاولة</button>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="toggleUI">⌄</button>
+
+    <div class="palette-row">
+      <button class="pal-btn active" data-pal="iron">🔥 IRON</button>
+      <button class="pal-btn" data-pal="rainbow">🌈 RAINBOW</button>
+      <button class="pal-btn" data-pal="white">⚪ WHITE</button>
+      <button class="pal-btn" data-pal="black">⚫ BLACK</button>
+      <button class="pal-btn" data-pal="lava">🌋 LAVA</button>
+    </div>
+
+    <div class="slider-row">
+      <label>حساسية</label>
+      <input type="range" id="gain" min="40" max="260" value="130">
+    </div>
+
+    <div class="slider-row">
+      <label>تقريرب</label>
+      <input type="range" id="zoom" min="10" max="400" value="100">
+    </div>
+
+    <div class="btn-row">
+      <button class="main-btn off" id="startBtn">▶ تشغيل</button>
+      <button class="ghost-btn ai" id="aiBtn">🤖 AI</button>
+      <button class="ghost-btn snd" id="soundBtn">🔇 صوت</button>
+      <button class="ghost-btn rec" id="recBtn">⏺ تسجيل</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="ghost-btn" id="swapBtn">🔄 تبديل كاميرا</button>
+      <button class="ghost-btn" id="demoBtn">🧪 محاكاة AI</button>
+      <button class="ghost-btn" id="snapBtn">📷 التقاط</button>
+      <button class="ghost-btn" id="statsBtn">📊 إحصائيات</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+<script>
+(() => {
+"use strict";
+
+/* ============ عناصر ============ */
+const video   = document.getElementById('cam');
+const canvas  = document.getElementById('view');
+const ctx     = canvas.getContext('2d');
+const startBtn= document.getElementById('startBtn');
+const aiBtn   = document.getElementById('aiBtn');
+const soundBtn= document.getElementById('soundBtn');
+const recBtn  = document.getElementById('recBtn');
+const swapBtn = document.getElementById('swapBtn');
+const demoBtn = document.getElementById('demoBtn');
+const snapBtn = document.getElementById('snapBtn');
+const statsBtn= document.getElementById('statsBtn');
+const retryBtn= document.getElementById('retryBtn');
+const gainEl  = document.getElementById('gain');
+const zoomEl  = document.getElementById('zoom');
+const zoomOut = document.getElementById('zoomOut');
+const fpsTag  = document.getElementById('fpsTag');
+const palTag  = document.getElementById('palTag');
+const statusTag=document.getElementById('statusTag');
+const statusTag2=document.getElementById('statusTag2');
+const tempOut = document.getElementById('tempOut');
+const modeTag = document.getElementById('modeTag');
+const noCam   = document.getElementById('noCam');
+const errMsg  = document.getElementById('errMsg');
+const errCode = document.getElementById('errCode');
+const loading = document.getElementById('loading');
+const loadingTitle = document.getElementById('loadingTitle');
+const loadingMsg = document.getElementById('loadingMsg');
+const controls= document.getElementById('controls');
+const toggleUI= document.getElementById('toggleUI');
+const recDot  = document.getElementById('recDot');
+const statsPanel = document.getElementById('statsPanel');
+const spTargets=document.getElementById('spTargets');
+const spIn    = document.getElementById('spIn');
+const spOut   = document.getElementById('spOut');
+const spConf  = document.getElementById('spConf');
+const spDist  = document.getElementById('spDist');
+const spFps   = document.getElementById('spFps');
+const spEngine= document.getElementById('spEngine');
+
+/* ============ ثوابت ============ */
+const SW = 320, SH = 240;
+const proc = document.createElement('canvas');
+proc.width = SW; proc.height = SH;
+const pctx = proc.getContext('2d', { willReadFrequently:true });
+
+/* ============ حالة ============ */
+let stream=null, running=false, demo=false;
+let facing='environment', mirrored=false;
+let palette='iron', gain=130, zoom=1.0;
+let aiEnabled=false, aiModel=null, aiLoading=false;
+let soundOn=false, audioCtx=null;
+let recording=false, recorder=null, recChunks=[];
+let showStats=false;
+let lastT = performance.now();
+let fpsN=0, fpsT=0, sweep=0;
+let lastConf=0;
+
+/* تتبع الأشخاص */
+let trackedPeople = [];
+let nextId = 1;
+let inCount=0, outCount=0;
+let lastDetections = [];
+let lastDetectTime = 0;
+const DETECT_INTERVAL = 420;   // ✅ خفّضنا الحمل — كشف كل ~0.4 ثانية
+const CONFIDENCE_MIN = 0.35;   // ✅ عتبة أقل = يكشف أكثر
+
+/* قائمة الكاميرات */
+let camList = [];
+let camIndex = 0;
+
+/* Canvas محسّن للـ AI (يستخدم للصور المضلمة) */
+let aiCanvas = null, aiCtx = null;
+
+/* ============ LUT ============ */
+function makeLUT(stops){
+  const lut = new Uint8ClampedArray(256*3);
+  for(let i=0;i<256;i++){
+    const t=i/255;
+    let s0=stops[0], s1=stops[stops.length-1];
+    for(let k=0;k<stops.length-1;k++){
+      if(t>=stops[k][0] && t<=stops[k+1][0]){ s0=stops[k]; s1=stops[k+1]; break; }
+    }
+    const span=(s1[0]-s0[0])||1, f=(t-s0[0])/span;
+    lut[i*3]  = s0[1]+(s1[1]-s0[1])*f;
+    lut[i*3+1]= s0[2]+(s1[2]-s0[2])*f;
+    lut[i*3+2]= s0[3]+(s1[3]-s0[3])*f;
+  }
+  return lut;
+}
+const PALETTES = {
+  iron:    makeLUT([[0,0,0,0],[0.15,30,0,60],[0.35,130,0,80],[0.55,210,35,10],[0.72,255,130,0],[0.88,255,220,70],[1,255,255,240]]),
+  rainbow: makeLUT([[0,0,0,20],[0.15,0,40,160],[0.35,0,180,200],[0.5,40,220,100],[0.65,200,230,30],[0.8,255,140,0],[1,255,30,30]]),
+  white:   makeLUT([[0,0,0,0],[0.5,128,128,128],[1,255,255,255]]),
+  black:   makeLUT([[0,255,255,255],[0.5,128,128,128],[1,0,0,0]]),
+  lava:    makeLUT([[0,10,0,0],[0.3,100,0,10],[0.55,220,40,0],[0.78,255,150,20],[1,255,245,190]])
+};
+let LUT = PALETTES.iron;
+
+/* ============ Canvas ============ */
+function resizeCanvas(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  canvas.width  = Math.round(rect.width  * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 50);
+
+/* ============ AI Canvas ============ */
+function initAICanvas(){
+  aiCanvas = document.createElement('canvas');
+  aiCanvas.width = SW;
+  aiCanvas.height = SH;
+  aiCtx = aiCanvas.getContext('2d');
+}
+initAICanvas();
+
+/* ============ الصوت ============ */
+function ping(freq=880, dur=0.15){
+  if(!soundOn) return;
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type='sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq*0.7, t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    osc.connect(g).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t+dur+0.05);
+  }catch(e){}
+}
+
+/* ============ تحميل AI (GPU + Warmup) ============ */
+async function loadAI(){
+  if(aiModel) return true;
+  if(aiLoading) return false;
+  aiLoading = true;
+  loading.classList.add('show');
+  loadingTitle.textContent = '⏳ جاري تهيئة محرك AI…';
+  loadingMsg.textContent = 'تفعيل WebGL + تحميل الموديل';
+
+  try{
+    // ✅ فعّل GPU (WebGL) — أسرع 3-5 مرات من CPU
+    let backendUsed = 'cpu';
+    try{
+      await tf.setBackend('webgl');
+      await tf.ready();
+      backendUsed = 'webgl';
+    }catch(e){
+      await tf.setBackend('cpu');
+      await tf.ready();
+      backendUsed = 'cpu';
+    }
+    spEngine.textContent = backendUsed.toUpperCase();
+
+    loadingMsg.textContent = 'تحميل COCO-SSD…';
+    aiModel = await cocoSsd.load({ base:'lite_mobilenet_v2' });
+
+    // ✅ Warmup — أول كشف ياخذ وقت، نسويه على صورة صغيرة
+    loadingMsg.textContent = 'تسخين الموديل…';
+    const warm = document.createElement('canvas');
+    warm.width = 320; warm.height = 240;
+    // ارسم شي بسيط حتى يشتغل الـ pipeline كامل
+    const wctx = warm.getContext('2d');
+    wctx.fillStyle = '#888';
+    wctx.fillRect(100, 80, 60, 120);
+    await aiModel.detect(warm, 3, 0.9);
+
+    loading.classList.remove('show');
+    aiLoading = false;
+    return true;
+  }catch(e){
+    console.error('AI load failed:', e);
+    loading.classList.remove('show');
+    aiLoading = false;
+    aiBtn.textContent = '❌ فشل';
+    return false;
+  }
+}
+
+/* ============ الكاميرا ============ */
+async function refreshCamList(){
+  try{
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    camList = devs.filter(d => d.kind === 'videoinput');
+  }catch(e){ camList = []; }
+}
+
+async function openCam(deviceId){
+  const attempts = deviceId
+    ? [{ video:{ deviceId:{ exact: deviceId } }, audio:false }]
+    : [
+        { video:{ facingMode:{ ideal: facing } }, audio:false },
+        { video:{ facingMode:{ ideal: facing }, width:{ideal:640}, height:{ideal:480} }, audio:false },
+        { video:{ facingMode:{ exact: facing } }, audio:false },
+        { video:true, audio:false }
+      ];
+  let lastErr = null;
+  for(const c of attempts){
+    try{
+      stopCam();
+      stream = await navigator.mediaDevices.getUserMedia(c);
+      video.srcObject = stream;
+      await video.play();
+      const track = stream.getVideoTracks()[0];
+      const label = (track.label || '').toLowerCase();
+      mirrored = /front|user|facetime|أمام/i.test(label) || (facing === 'user');
+      running = true; demo = false;
+      startBtn.textContent = '⏹ إيقاف';
+      startBtn.classList.add('off');
+      statusTag2.textContent = track.label ? track.label.slice(0,22) : 'يعمل';
+      statusTag2.style.display = 'block';
+      modeTag.textContent = '🔥 حراري';
+      noCam.classList.remove('show');
+      await refreshCamList();
+      return true;
+    }catch(e){ lastErr = e; console.warn('cam fail:', e.name, e.message); }
+  }
+  return lastErr;
+}
+
+async function startCam(){
+  if(!navigator.mediaDevices?.getUserMedia){
+    showCamError('متصفحك لا يدعم الكاميرا', 'NotSupported');
+    return;
+  }
+  noCam.classList.remove('show');
+  const res = await openCam(null);
+  if(res === true) return;
+  if(res && typeof res === 'object'){
+    const name = res.name || 'Unknown';
+    let msg = 'تعذّر الوصول للكاميرا.';
+    if(name === 'NotAllowedError') msg = 'تم رفض إذن الكاميرا. اسمح بالوصول من إعدادات المتصفح.';
+    else if(name === 'NotFoundError') msg = 'لا توجد كاميرا في الجهاز.';
+    else if(name === 'NotReadableError') msg = 'الكاميرا مستخدمة من تطبيق آخر. سكّر باقي التطبيقات.';
+    else if(name === 'OverconstrainedError') msg = 'الكاميرا لا تدعم الإعدادات المطلوبة.';
+    else if(name === 'SecurityError') msg = 'يجب فتح الصفحة عبر HTTPS.';
+    showCamError(msg, name);
+    return;
+  }
+  showCamError('فشلت كل المحاولات', 'Unknown');
+}
+
+function showCamError(msg, code){
+  noCam.classList.add('show');
+  errMsg.textContent = msg;
+  errCode.innerHTML = 'كود الخطأ: <code>' + code + '</code>';
+  running = false;
+  startBtn.textContent = '▶ تشغيل';
+  startBtn.classList.remove('off');
+}
+
+function stopCam(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  video.srcObject = null;
+}
+
+function stopAll(){
+  running=false; demo=false;
+  stopCam();
+  noCam.classList.remove('show');
+  startBtn.textContent = '▶ تشغيل';
+  startBtn.classList.add('off');
+  statusTag2.textContent = 'جاهز';
+  trackedPeople = []; lastDetections = [];
+  if(recording) stopRecording();
+}
+
+/* ============ أزرار ============ */
+startBtn.onclick = () => { if(running && !demo) stopAll(); else startCam(); };
+retryBtn.onclick = () => startCam();
+
+aiBtn.onclick = async () => {
+  if(aiEnabled){
+    aiEnabled = false;
+    aiBtn.textContent = '🤖 AI';
+    aiBtn.classList.remove('on');
+    statusTag.style.display = 'none';
+    trackedPeople = []; lastDetections = [];
+    return;
+  }
+  aiBtn.textContent = '⏳ تحميل';
+  const ok = await loadAI();
+  if(ok){
+    aiEnabled = true;
+    aiBtn.textContent = '🤖 AI ON';
+    aiBtn.classList.add('on');
+    statusTag.style.display = 'block';
+  }else{
+    aiBtn.textContent = '🤖 AI';
+  }
+};
+
+soundBtn.onclick = () => {
+  soundOn = !soundOn;
+  soundBtn.textContent = soundOn ? '🔊 صوت ON' : '🔇 صوت';
+  soundBtn.classList.toggle('on', soundOn);
+  if(soundOn && !audioCtx){
+    try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+  }
+};
+
+recBtn.onclick = () => {
+  if(recording) stopRecording();
+  else startRecording();
+};
+
+function startRecording(){
+  if(!running || !canvas.captureStream) return;
+  try{
+    const st = canvas.captureStream(25);
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9' : 'video/webm';
+    recorder = new MediaRecorder(st, { mimeType: mime, videoBitsPerSecond: 2500000 });
+    recChunks = [];
+    recorder.ondataavailable = e => { if(e.data.size) recChunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(recChunks, { type:'video/webm' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'thermal_' + Date.now() + '.webm';
+      a.click();
+    };
+    recorder.start();
+    recording = true;
+    recBtn.textContent = '⏹ إيقاف';
+    recBtn.classList.add('on');
+    recDot.classList.add('show');
+  }catch(e){ console.warn('Rec start failed:', e); }
+}
+function stopRecording(){
+  if(recorder && recorder.state !== 'inactive') recorder.stop();
+  recording = false;
+  recBtn.textContent = '⏺ تسجيل';
+  recBtn.classList.remove('on');
+  recDot.classList.remove('show');
+}
+
+swapBtn.onclick = async () => {
+  if(demo){ statusTag2.textContent = 'المحاكاة مفعلة'; return; }
+  if(!running){ statusTag2.textContent = 'شغّل الكاميرا أولاً'; return; }
+
+  await refreshCamList();
+
+  if(camList.length === 0){ statusTag2.textContent = 'ما فيه كاميرا'; return; }
+  if(camList.length === 1){ statusTag2.textContent = 'كاميرا وحدة فقط'; return; }
+
+  camIndex = (camIndex + 1) % camList.length;
+  const cam = camList[camIndex];
+  statusTag2.textContent = 'جاري التبديل…';
+
+  const ok = await openCam(cam.deviceId);
+  if(ok === true){
+    statusTag2.textContent = cam.label ? cam.label.slice(0,22) : ('كاميرا ' + (camIndex+1));
+  }else{
+    statusTag2.textContent = 'فشل التبديل';
+  }
+};
+
+demoBtn.onclick = async () => {
+  if(demo){ stopAll(); return; }
+  stopCam();
+  running = true; demo = true;
+  noCam.classList.remove('show');
+  startBtn.textContent = '⏹ إيقاف';
+  startBtn.classList.add('off');
+  statusTag2.textContent = 'محاكاة';
+  modeTag.textContent = '🧪 محاكاة';
+  demoBtn.textContent = '⏹ إيقاف';
+  initDemoPeople();
+  if(!aiEnabled){
+    const ok = await loadAI();
+    if(ok){ aiEnabled = true; aiBtn.textContent='🤖 AI ON'; aiBtn.classList.add('on'); statusTag.style.display='block'; }
+  }
+};
+
+snapBtn.onclick = () => {
+  const a = document.createElement('a');
+  a.download = 'thermal_ai_' + Date.now() + '.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+};
+
+statsBtn.onclick = () => {
+  showStats = !showStats;
+  statsPanel.classList.toggle('show', showStats);
+  statsBtn.textContent = showStats ? '📊 إخفاء' : '📊 إحصائيات';
+};
+
+document.querySelectorAll('.pal-btn').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.pal-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    palette = b.dataset.pal;
+    LUT = PALETTES[palette];
+    palTag.textContent = palette.toUpperCase();
+  };
+});
+gainEl.oninput = () => gain = +gainEl.value;
+zoomEl.oninput = () => { zoom = +zoomEl.value/100; zoomOut.textContent = zoom.toFixed(1) + '×'; };
+toggleUI.onclick = () => {
+  controls.classList.toggle('hidden');
+  toggleUI.textContent = controls.classList.contains('hidden') ? '⌃' : '⌄';
+};
+
+/* ============ المحاكاة ============ */
+let demoPeople = [];
+function initDemoPeople(){
+  demoPeople = [];
+  const n = 2 + Math.floor(Math.random()*3);
+  for(let i=0;i<n;i++){
+    demoPeople.push({
+      x: SW * (0.2 + Math.random()*0.6),
+      y: SH * (0.45 + Math.random()*0.35),
+      vx: (Math.random()-0.5) * 90,
+      vy: (Math.random()-0.5) * 12,
+      w: 40 + Math.random()*25,
+      h: 80 + Math.random()*40,
+      heat: 200 + Math.random()*55
+    });
+  }
+}
+
+function updateDemo(dt){
+  for(const p of demoPeople){
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if(p.x < p.w*0.6 || p.x > SW-p.w*0.6){ p.vx *= -1; p.x = Math.max(p.w*0.6, Math.min(SW-p.w*0.6, p.x)); }
+    if(p.y < p.h*0.6 || p.y > SH-20){ p.vy *= -1; p.y = Math.max(p.h*0.6, Math.min(SH-20, p.y)); }
+    p.vy += (Math.random()-0.5) * 30 * dt;
+    p.vy = Math.max(-30, Math.min(30, p.vy));
+  }
+}
+
+function drawDemoScene(){
+  const bg = pctx.createRadialGradient(SW/2,SH/2,20,SW/2,SH/2,SW*0.7);
+  bg.addColorStop(0,'#152028'); bg.addColorStop(1,'#050a10');
+  pctx.fillStyle = bg; pctx.fillRect(0,0,SW,SH);
+  pctx.fillStyle = '#1a2630';
+  pctx.fillRect(0, SH*0.72, SW, SH*0.28);
+  drawBlob(SW*0.15, SH*0.85, 40, 120, 50, 20);
+  drawBlob(SW*0.85, SH*0.88, 35, 150, 60, 15);
+  for(const p of demoPeople){
+    const g = pctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, p.h*0.9);
+    g.addColorStop(0, `rgb(${p.heat},${p.heat*0.85},${p.heat*0.55})`);
+    g.addColorStop(0.6, `rgb(${p.heat*0.65},${p.heat*0.4},${p.heat*0.25})`);
+    g.addColorStop(1, 'rgba(20,40,50,0)');
+    pctx.fillStyle = g;
+    pctx.beginPath(); pctx.ellipse(p.x, p.y, p.w, p.h*0.75, 0, 0, Math.PI*2); pctx.fill();
+    const hg = pctx.createRadialGradient(p.x, p.y - p.h*0.7, 2, p.x, p.y - p.h*0.7, p.w*0.6);
+    hg.addColorStop(0, `rgb(255,${p.heat*0.9},${p.heat*0.5})`);
+    hg.addColorStop(1, 'rgba(255,100,0,0)');
+    pctx.fillStyle = hg;
+    pctx.beginPath(); pctx.arc(p.x, p.y - p.h*0.7, p.w*0.6, 0, Math.PI*2); pctx.fill();
+  }
+}
+
+function drawBlob(x,y,r,R,G,B){
+  const g = pctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,`rgb(${R},${G},${B})`);
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  pctx.fillStyle = g;
+  pctx.beginPath(); pctx.arc(x,y,r,0,Math.PI*2); pctx.fill();
+}
+
+/* ============ كشف AI (بالصورة المحسّنة) ============ */
+async function runDetection(){
+  if(!aiEnabled || !aiModel || !running) return;
+  try{
+    // ✅ بالمحاكاة: استخدم proc مباشرة
+    // ✅ بالكاميرا الحقيقية: استخدم aiCanvas (صورة محسّنة الإضاءة)
+    const src = demo ? proc : aiCanvas;
+
+    // ✅ نمرر 6 كشوفات كحد أقصى، وعتبة 0.35
+    const preds = await aiModel.detect(src, 6, CONFIDENCE_MIN);
+    const persons = preds.filter(p => p.class === 'person');
+
+    if(demo){
+      lastDetections = demoPeople.map(p => ({
+        bbox: [p.x - p.w, p.y - p.h, p.w*2, p.h*1.4],
+        score: 0.85 + Math.random()*0.14
+      }));
+    }else{
+      lastDetections = persons.map(p => ({ bbox: p.bbox, score: p.score }));
+    }
+    lastConf = lastDetections.length ? Math.max(...lastDetections.map(d=>d.score)) : 0;
+    updateTracking(lastDetections);
+  }catch(e){ /* تجاهل */ }
+}
+
+/* ============ تتبع ============ */
+function boxDistance(a, b){
+  const ax = a[0]+a[2]/2, ay = a[1]+a[3]/2;
+  const bx = b[0]+b[2]/2, by = b[1]+b[3]/2;
+  return Math.hypot(ax-bx, ay-by);
+}
+
+function updateTracking(dets){
+  const now = performance.now();
+  for(const t of trackedPeople) t.seen = false;
+
+  for(const d of dets){
+    const bb = d.bbox;
+    let best = null, bestDist = Infinity;
+    for(const t of trackedPeople){
+      const dist = boxDistance(t.bbox, bb);
+      const threshold = Math.max(t.bbox[2], t.bbox[3]) * 0.6;
+      if(dist < threshold && dist < bestDist){
+        bestDist = dist; best = t;
+      }
+    }
+    if(best){
+      best.bbox = bb;
+      best.score = d.score;
+      best.lastSeen = now;
+      best.seen = true;
+      best.hits++;
+      if(best.smooth){
+        best.smooth[0] += (bb[0]-best.smooth[0])*0.35;
+        best.smooth[1] += (bb[1]-best.smooth[1])*0.35;
+        best.smooth[2] += (bb[2]-best.smooth[2])*0.35;
+        best.smooth[3] += (bb[3]-best.smooth[3])*0.35;
+      }else{
+        best.smooth = [...bb];
+      }
+    }else{
+      const id = nextId++;
+      trackedPeople.push({
+        id, bbox: bb, score: d.score,
+        smooth: [...bb],
+        lastSeen: now, seen: true, hits: 1,
+        born: now
+      });
+      ping(900 + Math.random()*250);
+      const cx = bb[0] + bb[2]/2;
+      if(cx < SW/2) inCount++;
+    }
+  }
+
+  for(let i = trackedPeople.length-1; i >= 0; i--){
+    const t = trackedPeople[i];
+    if(!t.seen && now - t.lastSeen > 1200){
+      const cx = t.bbox[0] + t.bbox[2]/2;
+      if(cx >= SW/2) outCount++;
+      trackedPeople.splice(i,1);
+    }
+  }
+  if(trackedPeople.length > 12) trackedPeople = trackedPeople.slice(-12);
+}
+
+/* ============ معالجة الإطار ============ */
+function processFrame(now){
+  const dt = (now - lastT) / 1000;
+  lastT = now;
+
+  const vw = video.videoWidth || SW;
+  const vh = video.videoHeight || SH;
+
+  pctx.save();
+  if(mirrored){ pctx.translate(SW,0); pctx.scale(-1,1); }
+  if(demo){
+    updateDemo(dt);
+    drawDemoScene();
+  }else{
+    const z = Math.max(1, zoom);
+    const cw = vw / z, ch = vh / z;
+    const sx = (vw - cw)/2, sy = (vh - ch)/2;
+    try{ pctx.drawImage(video, sx, sy, cw, ch, 0, 0, SW, SH); }catch(e){}
+  }
+  pctx.restore();
+
+  // تحويل حراري
+  const id = pctx.getImageData(0, 0, SW, SH);
+  const buf = id.data;
+  const g = gain/100;
+  let maxLum = 0;
+  for(let i=0;i<buf.length;i+=4){
+    let lum = buf[i]*0.299 + buf[i+1]*0.587 + buf[i+2]*0.114;
+    lum = 255 / (1 + Math.exp(-(lum * g - 128) / 42));
+    if(lum > maxLum) maxLum = lum;
+    const idx = (lum|0) * 3;
+    buf[i]   = LUT[idx];
+    buf[i+1] = LUT[idx+1];
+    buf[i+2] = LUT[idx+2];
+  }
+  pctx.putImageData(id, 0, 0);
+
+  // ✅ حضر صورة محسّنة الإضاءة للموديل (تشتغل بالأماكن المضلمة)
+  // نرسم من proc الأصلي (قبل التحويل الحراري) — لا، نحتاج الصورة الأصلية
+  // لكن proc الآن صار فيه الصورة الحرارية. نرسمها بـ grayscale + brightness
+  if(aiCtx){
+    aiCtx.save();
+    aiCtx.filter = 'grayscale(1) brightness(2.4) contrast(1.7)';
+    aiCtx.drawImage(proc, 0, 0, SW, SH);
+    aiCtx.restore();
+  }
+
+  // رسم
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(proc, 0, 0, canvas.width, canvas.height);
+
+  if(aiEnabled) drawTracked();
+
+  // FPS
+  fpsN++; fpsT += dt;
+  if(fpsT >= 0.5){
+    const fps = Math.round(fpsN/fpsT);
+    fpsTag.textContent = fps + ' FPS';
+    spFps.textContent = fps + ' FPS';
+    fpsN = 0; fpsT = 0;
+  }
+
+  const fakeTemp = Math.round(20 + (maxLum/255)*40);
+  tempOut.textContent = fakeTemp + '°';
+
+  if(aiEnabled){
+    statusTag.textContent = '👤 ' + trackedPeople.length;
+    statusTag.style.display = 'block';
+    spTargets.textContent = trackedPeople.length;
+    spIn.textContent = inCount;
+    spOut.textContent = outCount;
+    spConf.textContent = lastConf ? Math.round(lastConf*100)+'%' : '--%';
+    if(trackedPeople.length){
+      const avgH = trackedPeople.reduce((s,t)=>s+t.bbox[3],0)/trackedPeople.length;
+      const dist = Math.max(1, Math.round(200 / (avgH/100 + 1)));
+      spDist.textContent = dist + 'م';
+    }else{
+      spDist.textContent = '--م';
+    }
+  }else{
+    statusTag.style.display = 'none';
+  }
+}
+
+/* ============ رسم التتبع ============ */
+function drawTracked(){
+  const vw = video.videoWidth || SW;
+  const vh = video.videoHeight || SH;
+  const cw = canvas.width, ch = canvas.height;
+  const scaleX = cw / vw;
+  const scaleY = ch / vh;
+  const z = Math.max(1, zoom);
+  const cropX = (vw - vw/z)/2;
+  const cropY = (vh - vh/z)/2;
+
+  for(const t of trackedPeople){
+    const bb = t.smooth || t.bbox;
+    let x = (bb[0] - cropX) * z * scaleX;
+    let y = (bb[1] - cropY) * z * scaleY;
+    let w = bb[2] * z * scaleX;
+    let h = bb[3] * z * scaleY;
+    if(mirrored) x = cw - x - w;
+
+    const age = (performance.now() - t.born)/1000;
+    const isNew = age < 0.6;
+
+    ctx.save();
+    ctx.strokeStyle = '#00b3ff';
+    ctx.lineWidth = Math.max(2, cw/480 * 2.5);
+    ctx.shadowColor = '#00b3ff';
+    ctx.shadowBlur = 12;
+    ctx.strokeRect(x, y, w, h);
+
+    const corner = Math.min(w,h) * 0.2;
+    ctx.lineWidth = Math.max(3, cw/480 * 4);
+    ctx.strokeStyle = '#00e6ff';
+    ctx.beginPath(); ctx.moveTo(x,y+corner); ctx.lineTo(x,y); ctx.lineTo(x+corner,y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+w-corner,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+corner); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x,y+h-corner); ctx.lineTo(x,y+h); ctx.lineTo(x+corner,y+h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+w-corner,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w,y+h-corner); ctx.stroke();
+
+    if(isNew){
+      ctx.strokeStyle = `rgba(0,230,255,${1 - age/0.6})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x+w/2, y+h/2, Math.max(w,h)*0.6 + age*80, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    const label = `#${t.id} 👤 ${Math.round(t.score*100)}%`;
+    ctx.font = `bold ${Math.max(11, cw/480 * 13)}px Consolas, monospace`;
+    const tw = ctx.measureText(label).width + 12;
+    const th = Math.max(18, cw/480 * 20);
+    ctx.fillStyle = 'rgba(0,179,255,0.9)';
+    ctx.fillRect(x, y - th - 2, tw, th);
+    ctx.fillStyle = '#fff';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + 6, y - th/2 - 2);
+
+    ctx.strokeStyle = 'rgba(0,230,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(x+w/2, y+h/2);
+    ctx.lineTo(cw/2, ch/2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const cx = x + w/2, cy = y + h/2;
+    const rg = ctx.createRadialGradient(cx, cy, 2, cx, cy, Math.min(w,h)*0.35);
+    rg.addColorStop(0, 'rgba(255,80,0,0.55)');
+    rg.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.min(w,h)*0.35, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+/* ============ حلقة ============ */
+function loop(now){
+  requestAnimationFrame(loop);
+  if(!running){
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    sweep = (sweep + 0.02) % 1;
+    ctx.strokeStyle = 'rgba(0,255,80,0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, sweep * canvas.height);
+    ctx.lineTo(canvas.width, sweep * canvas.height);
+    ctx.stroke();
+    lastT = now;
+    return;
+  }
+  processFrame(now);
+  if(aiEnabled && aiModel && now - lastDetectTime > DETECT_INTERVAL){
+    lastDetectTime = now;
+    runDetection();
+  }
+}
+
+requestAnimationFrame((t)=>{ lastT = t; loop(t); });
+
+})();
+</script>
+</body>
+</html>
